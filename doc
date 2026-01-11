@@ -1,0 +1,228 @@
+
+The core does not enforce correctness between modules.
+All priority, dependency, and calling rules are conventions.
+Violating them is undefined behavior.
+
+Modules are equivalent to kernel replacements.
+Installing a module is equivalent to running arbitrary kernel code.
+There is no security boundary between modules.
+
+
+
+Module  0:
+	CMD  1:
+		allocates a global storage for a module to use
+		INPUT: arg0=ID, arg1=byteSize
+		INFO:
+			Provides per-module persistent global storage.
+			storage is zeroed upon allocation.
+			must be called from module init.
+			Allocation is permanent.
+	CMD  2:
+		returns a pointer to a modules global storage
+		INPUT: arg0=ID, arg1=outputPTR
+		OUTPUT: outputPTR=allocatedPTR
+	CMD  3:
+		returns a pointer to a modules CoreData
+		INPUT: arg0=ID, arg1=outputPTR
+		OUTPUT: outputPTR=CoreDataPTR
+	CMD  4:
+		returns a pointer to the end of the bump allocator
+		INPUT: arg0=outputPTR
+		OUTPUT: outputPTR=BumpEndPTR
+	CMD  5:
+		sets a new alloc function to replace the bump allocator
+		INPUT: arg0=allocFunc
+		INFO:
+			alloc function def: void ()(uint32_t,void**)
+Module  1:
+	INFO:
+		NAME: "VGA-driver"
+	CMD  1:
+		printf with some extra functionality
+		INPUT: arg0=stringPtr, arg1+=extraInputs
+		INFO:
+			%# : has 2 digit HEX value after #, digit1=textColor, digit2=backgroundColor
+			%#$ : switches color to the default color
+			%b : prints intager value in binary
+			supports: %u %i %d %c %s %x %% %b %p
+			TODO: %# %f
+	CMD  2:
+		clears default terminal screen
+	CMD  3:
+		sets/adds/gets default terminal position
+		INPUT: arg0=mode, arg1=x, arg2=y
+		INFO:
+			modes: 0=setXY, 1=addXY, 2=getXY
+	CMD  4:
+		putc
+		INPUT: arg0=char
+		INFO:
+			puts a charatacter at current cursor position and incerments cursor
+Module  2:
+	INFO:
+		NAME: "untilities"
+	CMD  1:
+		converts number to string
+		INPUT: arg0=valueType, arg1=number, arg2=stringBuffer
+		INFO:
+			supports: U32, U16, U8, I32, I16, I8
+			TODO: F32, F64, U64, I64
+	CMD  2:
+		to the power of, operation
+		INPUT: arg0=valueType, arg1=basePtr, arg2=exponent
+		INFO:
+			supports: U32, U16, U8, I32, I16, I8
+			TODO: F32, F64, U64, I64
+	CMD  3:
+		converts number to hexadecimal string
+		INPUT: arg0=valueType, arg1=number, arg2=stringBuffer
+		INFO:
+			supports: U32, U16, U8, I32, I16, I8
+			TODO: F32, F64, U64, I64
+	CMD  4:
+		converts number to binary string
+		INPUT: arg0=valueType, arg1=number, arg2=stringBuffer
+		INFO:
+			supports: U32, U16, U8, I32, I16, I8
+			TODO: F32, F64, U64, I64
+	CMD  5:
+		copys <num> bytes to dstPtr from srcPtr
+		INPUT: arg0=dstPtr, arg1=srcPtr, arg2=num
+	CMD  6:
+		sets <num> bytes to dstPtr with <value>
+		INPUT: arg0=dstPtr, arg1=value, arg2=num
+Module  3:
+	INFO:
+		NAME: "system_start"
+	INFO:
+		the currnet entery point of the OS
+Module  4:
+	INFO:
+		NAME: "interrupt"
+	CMD  1:
+		registers an interrupt
+		INPUT: arg0=intID, arg1=flags, arg2=handlerPTR
+Module  5:
+	INFO:
+		NAME: "keyboard"
+	CMD  1:
+		check if keyboard has data
+		INPUT: arg0=outputPTRint
+	CMD  2:
+		get a keyboard event
+		INPUT: arg0=outputPTRint
+Module  6:
+	INFO:
+		NAME: "PIT"
+	CMD  1:
+		sleeps for set time
+		INPUT: arg0=timeInMS
+	CMD  2:
+		registers a function callback that runs every tick
+		INPUT: arg0=funcPtr
+		INFO:
+			takes: void(*)(void)
+	CMD  3:
+		returns the current tick count
+		INPUT: arg0=outputPtr
+	CMD  4:
+		sleeps for set time
+		INPUT: arg0=timeInMS
+Module  7:
+	INFO:
+		NAME: "memory-manager"
+	CMD  1:
+		allocates memory for the kernel
+		INPUT: arg0=size, arg1=outputPtr
+		OUTPUT: outputPtr=allocedPtr
+	CMD  2:
+		frees memory from kernel
+		INPUT: arg0=dataToFreePtr
+
+
+
+
+
+Modules:
+	INPUTS:
+		every module will get a pointer to its CoreData struct.
+		if they allocated global storage, all module commands will get a pointer to it.
+	RETURNS:
+		EAX: always holds the error code, 0 means no error.
+	Calling:
+		Module commands must only be called using the provided syscall macro.
+	INFO:
+		Each module may own at most one global allocation.
+		Global storage lifetime is system uptime.
+		Global storage is zeroed on allocation.
+		If a module allocates global storage, all its commands must accept-
+			-a pointer to that storage as an argument.
+		CMD 0 is reserved for module-specific info and/or diagnostics.
+	
+	NOTES:
+		anything outside of this standard format will be noted for the modules/commands.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+module magic number( 0x3A, 0x44, 0xBE, 0xE0 )
+format: 1byte @only used for metadata format changes if any in future
+module id: 4bytes
+name: 32bytes
+priority: 1byte
+num_exports: 4bytes
+exports: 4byte func id, 4byte func ptr, [repeat*num_exports]
+init: 4byte func ptr, always has 0 inputs and outputs
+
+end magic number( 0x3A, 0x44, 0xBE, 0xE0 ) must be added outside of meta data header at end of module(including C code)
+
+@ This module format is specific to the x86-32 core.
+@ Other cores may define incompatible formats and magic values.
+
+
+
+
+
+
+BEE-NAMES-PAGE:
+	times-14:
+		32B-name . 4B-data-ptr
+		--: if name empty, do not register
+	
+	4B-next-page-ptr
+	4B-unused
+
+BEE-DATA-PAGE:
+	1B-priority
+	4B-initFunc
+	4B-num_exports
+	exprt*num_exports:
+		32B-name 4B-func 4B-ID
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

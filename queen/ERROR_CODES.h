@@ -1,0 +1,51 @@
+#pragma once
+
+
+
+#define CORE_ERROR_NONE 0
+#define CORE_ERROR_NO_MODULE 1
+#define CORE_ERROR_NO_CMD 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
